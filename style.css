@@ -171,6 +171,7 @@ html,body {
   height:100%;
   object-fit:cover;
   filter:blur(8px) brightness(.7);
+  cursor: pointer; /* 배경 이미지 클릭 가능하도록 커서 변경 */
 }
 
 .member-profile-card {
@@ -195,6 +196,7 @@ html,body {
   border:4px solid var(--accent);
   margin-top:-90px;
   background:#fff;
+  cursor: pointer; /* 프로필 이미지 클릭 가능하도록 커서 변경 */
 }
 
 .member-name {
@@ -458,4 +460,90 @@ input[type="text"], input[type="date"], input[type="password"], input[type="date
 
 .media-modal-download-btn:hover {
   background-color: rgba(0, 0, 0, 0.7);
+}
+
+
+/* ⭐ viewer.html 전용 스타일 (member.html과 유사하지만 구분) ⭐ */
+.app-frame--profile-viewer {
+  overflow: hidden;
+  background: var(--bg); /* 기본 배경색 */
+}
+
+.viewer-bg-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.viewer-bg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(.7); /* 흐림 효과는 제거하고 어둡게만 */
+  cursor: pointer; /* 클릭 가능하도록 커서 변경 */
+}
+
+.viewer-profile-card {
+  position: relative;
+  margin-top: 40vh; /* member.html과 유사한 위치 */
+  margin-inline: auto;
+  width: 90%;
+  max-width: 300px;
+  background: rgba(255,255,255,.9);
+  padding: 32px 16px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+  z-index: 10;
+}
+
+.viewer-profile-img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 4px solid var(--accent);
+  margin-top: -90px;
+  background: #fff;
+  cursor: pointer; /* 클릭 가능하도록 커서 변경 */
+}
+
+.viewer-name {
+  margin: 16px 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ⭐ 미디어 팝업 내비게이션 버튼 (좌우 화살표) ⭐ */
+.media-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  padding: 10px 15px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 50%;
+  z-index: 1002; /* 닫기/저장 버튼 위에 */
+  transition: background-color 0.2s;
+}
+
+.media-nav-btn:hover {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.media-nav-btn--prev {
+  left: 20px;
+}
+
+.media-nav-btn--next {
+  right: 20px;
+}
+
+.media-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
