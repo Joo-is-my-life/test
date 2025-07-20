@@ -28,17 +28,27 @@ function getMemberDisplay(id){
   return m ? m.display : id;
 }
 function profileSrc(id){
-  return `images/${id}_profile.jpg`;
+  return `images/${id}_profile.jpg`; // 현재 최신 프로필 이미지 경로
 }
 function backgroundSrc(id){
-  return `images/${id}_background.jpg`;
+  return `images/${id}_background.jpg`; // 현재 최신 배경 이미지 경로
 }
-function dataSrc(id){
+function chatDataSrc(id){ // 기존 채팅 데이터 경로 함수명 변경
   const username = 'Joo-is-my-life';
   const repoName = 'test';
   const branch = 'main';
   return `https://raw.githubusercontent.com/${username}/${repoName}/${branch}/data/${id}.csv`;
 }
+
+// ⭐ 히스토리 데이터 경로 함수 추가 ⭐
+function historyDataSrc(memberId, type){
+  const username = 'Joo-is-my-life';
+  const repoName = 'test';
+  const branch = 'main';
+  // 타입에 따라 profile 또는 background 폴더 지정
+  return `https://raw.githubusercontent.com/${username}/${repoName}/${branch}/data/${type}/${memberId}.csv`;
+}
+
 function formatDateK(dateStr){
   const d = new Date(dateStr);
   if(!isNaN(d.getTime())){
@@ -83,10 +93,21 @@ function initMember(){
   const prof=qs("#memberProfile");
   const nameEl=qs("#memberDisplayName");
   const btn=qs("#viewChatBtn");
-  if(bg) bg.src=backgroundSrc(id);
+
+  if(bg) {
+    bg.src=backgroundSrc(id);
+    // ⭐ 배경 이미지 클릭 시 viewer.html로 이동 ⭐
+    bg.addEventListener("click", () => {
+      location.href = `viewer.html?m=${id}&type=background`;
+    });
+  }
   if(prof){
     prof.src=profileSrc(id);
     prof.onerror=()=>{prof.src="images/default_profile.jpg";}
+    // ⭐ 프로필 이미지 클릭 시 viewer.html로 이동 ⭐
+    prof.addEventListener("click", () => {
+      location.href = `viewer.html?m=${id}&type=profile`;
+    });
   }
   if(nameEl) nameEl.textContent=disp;
   if(btn){
@@ -154,7 +175,7 @@ async function loadChatData(id){
   if(!box) return;
   box.innerHTML="<div class='chat-date-sep'>채팅 데이터 불러오는 중...</div>";
   try{
-    const res=await fetch(dataSrc(id));
+    const res=await fetch(chatDataSrc(id)); // ⭐ chatDataSrc 함수 사용 ⭐
     if(!res.ok) {
       let errorMessage = `데이터를 불러올 수 없어요. (오류 코드: ${res.status})`;
       if (res.status === 404) {
@@ -177,95 +198,21 @@ async function loadChatData(id){
   }
 }
 
-// ⭐ 미디어 모달 관련 DOM 요소 참조 변수 추가 ⭐
+// ⭐ 미디어 모달 관련 DOM 요소 참조 변수 추가 ⭐ (viewer.html에서도 사용되도록 전역 정의)
 const mediaModal = qs("#mediaModal");
 const closeMediaModalBtn = qs("#closeMediaModal");
 const modalImage = qs("#modalImage");
 const modalVideo = qs("#modalVideo");
 const downloadMediaBtn = qs("#downloadMediaBtn");
+// ⭐ 히스토리 내비게이션 버튼 추가 ⭐
+const prevMediaBtn = qs("#prevMediaBtn");
+const nextMediaBtn = qs("#nextMediaBtn");
 
+let currentMediaHistory = []; // 현재 팝업에 표시될 미디어 히스토리 배열
+let currentMediaIndex = 0;    // 현재 표시 중인 미디어의 인덱스
 
-// 채팅 UI 렌더링
-function renderChat(box, data, memberId){
-  box.innerHTML="";
-  const fanNick=getNickname() || "빌런즈";
-  let lastDate=null;
-  data.forEach(msg=>{
-    if(msg.date && msg.date!==lastDate){
-      const sep=document.createElement("div");
-      sep.className="chat-date-sep";
-      sep.textContent=formatDateK(msg.date);
-      box.appendChild(sep);
-      lastDate=msg.date;
-    }
-    
-    // chat-msg-wrap을 flexbox 컨테이너로 사용하여 말풍선과 시간을 같은 줄에 배치
-    const msgWrap = document.createElement("div");
-    msgWrap.className = "chat-msg-wrap"; // flexbox 컨테이너 역할
-
-    const msgContent = document.createElement("div"); // 메시지 내용이 들어갈 컨테이너
-    msgContent.className = `chat-msg artist`; // 기존 말풍선 스타일 유지
-
-    let mediaUrl = null; // 팝업에 전달할 미디어 URL
-    let mediaType = null; // 팝업에 전달할 미디어 타입
-
-    // msg.type에 따라 내용 렌더링 분기
-    if (msg.type === 'image' && msg.media) {
-      const img = document.createElement("img");
-      img.src = msg.media;
-      img.alt = "채팅 이미지";
-      img.className = "chat-media-image"; // CSS 스타일링을 위한 클래스
-      msgContent.appendChild(img);
-      mediaUrl = msg.media; // 이미지 URL 저장
-      mediaType = 'image'; // 이미지 타입 저장
-    } else if (msg.type === 'video' && msg.media) {
-      const video = document.createElement("video");
-      video.src = msg.media;
-      video.controls = true; // 동영상 컨트롤 표시 (재생/정지 등)
-      video.className = "chat-media-video"; // CSS 스타일링을 위한 클래스
-      msgContent.appendChild(video);
-      mediaUrl = msg.media; // 동영상 URL 저장
-      mediaType = 'video'; // 동영상 타입 저장
-    } else if (msg.text && msg.text.trim() !== '') {
-      // 기본 텍스트 메시지
-      const msgText = document.createTextNode(msg.text.replace(/\(name\)/g, fanNick));
-      msgContent.appendChild(msgText);
-    } else {
-      // 내용이 없는 메시지는 건너뛰기
-      console.warn("Skipping message with no content:", msg);
-      return;
-    }
-
-    // ⭐ 이미지/동영상 클릭 시 팝업 열기 이벤트 추가 ⭐
-    if (mediaUrl) {
-        msgContent.style.cursor = 'pointer'; // 클릭 가능한 커서로 변경
-        // 이미 video 태그에 controls가 있어서 자체 재생/일시정지 가능하므로,
-        // video 자체에 클릭 이벤트는 추가하지 않음 (팝업은 별개)
-        // 하지만 이미지 클릭이나 video 자체 클릭이 아닌 말풍선 전체 클릭 시 팝업 띄우려면
-        // msgContent에 리스너를 달아야 함. 현재는 mediaUrl이 있으면 무조건 클릭 시 팝업 띄움.
-        msgContent.addEventListener('click', () => {
-            openMediaModal(mediaUrl, mediaType);
-        });
-    }
-
-    // 완성된 메시지 내용 컨테이너(msgContent)를 msgWrap에 추가
-    msgWrap.appendChild(msgContent);
-    
-    // 시간 정보(meta)를 msgWrap의 자식으로 추가
-    if (msg.time) { // msg.text 유무 검사 제거 (이미지/동영상도 시간 표시해야 하므로)
-      const meta = document.createElement("div");
-      meta.className = "chat-meta";
-      meta.textContent = msg.time;
-      msgWrap.appendChild(meta); // msgWrap의 직접 자식으로 추가
-    }
-    
-    box.appendChild(msgWrap);
-  });
-  box.scrollTop = box.scrollHeight;
-}
-
-// ⭐ 미디어 팝업 열기 함수 ⭐
-function openMediaModal(mediaUrl, mediaType) {
+// ⭐ 미디어 팝업 열기 함수 (채팅방, 뷰어 페이지에서 모두 사용) ⭐
+function openMediaModal(mediaUrl, mediaType, historyData = [], initialIndex = 0) {
     if (!mediaModal || !modalImage || !modalVideo || !downloadMediaBtn) {
         console.error("미디어 모달 관련 DOM 요소를 찾을 수 없습니다.");
         return;
@@ -275,23 +222,83 @@ function openMediaModal(mediaUrl, mediaType) {
     modalVideo.style.display = 'none';
     modalVideo.pause(); // 혹시 재생 중인 비디오가 있으면 일시 정지
 
-    if (mediaType === 'image') {
-        modalImage.src = mediaUrl;
-        modalImage.style.display = 'block';
-    } else if (mediaType === 'video') {
-        modalVideo.src = mediaUrl;
-        modalVideo.style.display = 'block';
-        modalVideo.load(); // 비디오 로드 (src 변경 후 필요할 수 있음)
-    }
+    currentMediaHistory = historyData; // 히스토리 데이터 저장
+    currentMediaIndex = initialIndex; // 초기 인덱스 설정
 
-    downloadMediaBtn.href = mediaUrl; // 다운로드 링크 설정
-    // 파일 이름만 추출하여 다운로드 시 파일 이름으로 사용
-    const fileName = mediaUrl.split('/').pop().split('?')[0]; // URL 쿼리 파라미터 제거
-    downloadMediaBtn.download = fileName;
+    // 현재 선택된 미디어를 팝업에 표시
+    updateMediaModalContent();
 
     mediaModal.classList.remove('hidden'); // 팝업 표시
     document.body.style.overflow = 'hidden'; // 스크롤 방지
+
+    // 히스토리 버튼 활성화/비활성화
+    updateMediaNavButtons();
 }
+
+// ⭐ 팝업 내용 업데이트 함수 ⭐
+function updateMediaModalContent() {
+    const mediaItem = currentMediaHistory[currentMediaIndex];
+    if (!mediaItem) {
+        console.error("Invalid media history item or index:", currentMediaIndex, currentMediaHistory);
+        return;
+    }
+
+    modalImage.style.display = 'none';
+    modalVideo.style.display = 'none';
+    modalVideo.pause();
+    modalVideo.currentTime = 0;
+
+    if (mediaItem.type === 'image') {
+        modalImage.src = mediaItem.path;
+        modalImage.style.display = 'block';
+    } else if (mediaItem.type === 'video') {
+        modalVideo.src = mediaItem.path;
+        modalVideo.style.display = 'block';
+        modalVideo.load();
+    } else { // 채팅방에서 넘어온 일반적인 이미지/비디오 처리
+        if (mediaItem.type_orig === 'image') {
+            modalImage.src = mediaItem.path;
+            modalImage.style.display = 'block';
+        } else if (mediaItem.type_orig === 'video') {
+            modalVideo.src = mediaItem.path;
+            modalVideo.style.display = 'block';
+            modalVideo.load();
+        }
+    }
+
+    downloadMediaBtn.href = mediaItem.path;
+    const fileName = mediaItem.path.split('/').pop().split('?')[0];
+    downloadMediaBtn.download = fileName;
+}
+
+// ⭐ 미디어 팝업 내비게이션 버튼 업데이트 함수 ⭐
+function updateMediaNavButtons() {
+    if (prevMediaBtn) {
+        prevMediaBtn.disabled = currentMediaIndex === 0;
+    }
+    if (nextMediaBtn) {
+        nextMediaBtn.disabled = currentMediaIndex >= currentMediaHistory.length - 1;
+    }
+}
+
+// ⭐ 다음 미디어로 이동 ⭐
+function showNextMedia() {
+    if (currentMediaIndex < currentMediaHistory.length - 1) {
+        currentMediaIndex++;
+        updateMediaModalContent();
+        updateMediaNavButtons();
+    }
+}
+
+// ⭐ 이전 미디어로 이동 ⭐
+function showPrevMedia() {
+    if (currentMediaIndex > 0) {
+        currentMediaIndex--;
+        updateMediaModalContent();
+        updateMediaNavButtons();
+    }
+}
+
 
 // ⭐ 미디어 팝업 닫기 함수 ⭐
 function closeMediaModal() {
@@ -302,6 +309,8 @@ function closeMediaModal() {
         modalVideo.pause(); // 비디오 정지
         modalVideo.currentTime = 0; // 비디오 재생 시간 초기화
         document.body.style.overflow = ''; // 스크롤 허용
+        currentMediaHistory = []; // 히스토리 초기화
+        currentMediaIndex = 0; // 인덱스 초기화
     }
 }
 
@@ -331,6 +340,80 @@ function saveNickname(){
   }
 }
 
+
+// ⭐ viewer.html 페이지 초기화 ⭐
+async function initViewer() {
+    const id = getParam("m");
+    const type = getParam("type"); // 'profile' 또는 'background'
+    if (!id || !type) {
+        console.warn("Member ID or Type not found in URL for viewer.html");
+        return;
+    }
+
+    const disp = getMemberDisplay(id);
+    const viewerBg = qs("#viewerBg");
+    const viewerProf = qs("#viewerProfile");
+    const viewerNameEl = qs("#viewerDisplayName");
+
+    if (viewerNameEl) viewerNameEl.textContent = disp;
+
+    // 현재 프로필/배경 이미지 로드
+    if (type === 'profile' && viewerProf) {
+        viewerProf.src = profileSrc(id); // 최신 프로필
+        viewerProf.onerror = () => { viewerProf.src = "images/default_profile.jpg"; };
+    } else if (type === 'background' && viewerBg) {
+        viewerBg.src = backgroundSrc(id); // 최신 배경
+    }
+
+    // 히스토리 데이터 로드 및 클릭 이벤트 연결
+    try {
+        const res = await fetch(historyDataSrc(id, type)); // 해당 멤버의 특정 타입 히스토리 CSV 로드
+        if (!res.ok) {
+            console.error(`Failed to load history data for ${id}, type ${type}. Status: ${res.status}`);
+            return;
+        }
+        const csvText = await res.text();
+        const rawHistory = parseCsv(csvText); // CSV 파싱
+
+        // 날짜를 기준으로 정렬 (가장 오래된 것부터 최근 것 순으로)
+        const sortedHistory = rawHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        // 각 항목에 'type' 정보 추가 (팝업에서 사용하기 위함)
+        const historyWithTypes = sortedHistory.map(item => ({ ...item, type_orig: type, type: getMediaType(item.path) }));
+        
+        // 현재 활성화된 프로필/배경 이미지에 클릭 이벤트 추가
+        let currentViewerMediaElement;
+        if (type === 'profile' && viewerProf) {
+            currentViewerMediaElement = viewerProf;
+        } else if (type === 'background' && viewerBg) {
+            currentViewerMediaElement = viewerBg;
+        }
+
+        if (currentViewerMediaElement) {
+            currentViewerMediaElement.addEventListener('click', () => {
+                // 현재 이미지의 인덱스를 찾거나 (가장 마지막)
+                // 단순히 전체 히스토리 배열을 넘기고 마지막 인덱스를 시작점으로 줌
+                const initialIndex = historyWithTypes.length > 0 ? historyWithTypes.length - 1 : 0;
+                openMediaModal(historyWithTypes[initialIndex]?.path, historyWithTypes[initialIndex]?.type, historyWithTypes, initialIndex);
+            });
+        }
+
+    } catch (error) {
+        console.error("Error loading profile/background history:", error);
+    }
+}
+
+// 파일 경로에서 미디어 타입 (image/video) 추론 함수
+function getMediaType(path) {
+    if (/\.(mp4|mov|webm|ogg)$/i.test(path)) {
+        return 'video';
+    } else if (/\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(path)) {
+        return 'image';
+    }
+    return 'unknown';
+}
+
+
 /* 페이지 로드 시 초기화 함수 실행 */
 document.addEventListener("DOMContentLoaded",()=>{
   const path=location.pathname;
@@ -340,6 +423,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     initMember();
   }else if(path.endsWith("chat.html")){
     initChat();
+  }else if(path.endsWith("viewer.html")){ // ⭐ 새로운 viewer.html 초기화 ⭐
+    initViewer();
   }
 
   // ⭐ 미디어 팝업 닫기 이벤트 리스너 추가 ⭐
@@ -354,4 +439,12 @@ document.addEventListener("DOMContentLoaded",()=>{
         }
     });
   }
+  // ⭐ 미디어 팝업 내비게이션 버튼 이벤트 리스너 추가 ⭐
+  if (prevMediaBtn) {
+    prevMediaBtn.addEventListener('click', showPrevMedia);
+  }
+  if (nextMediaBtn) {
+    nextMediaBtn.addEventListener('click', showNextMedia);
+  }
 });
+
