@@ -34,7 +34,7 @@ function backgroundSrc(id){
   return `images/${id}_background.jpg`;
 }
 function dataSrc(id){
-  const username = 'JJoo0912';
+  const username = 'Joo-is-my-life';
   const repoName = 'test';
   const branch = 'main';
   return `https://raw.githubusercontent.com/${username}/${repoName}/${branch}/data/${id}.csv`;
