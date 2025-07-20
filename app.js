@@ -169,6 +169,101 @@ function parseCsv(csvText) {
   return result;
 }
 
+
+// ⭐ 미디어 모달 관련 DOM 요소 참조 변수 추가 ⭐ (viewer.html에서도 사용되도록 전역 정의)
+const mediaModal = qs("#mediaModal");
+const closeMediaModalBtn = qs("#closeMediaModal");
+const modalImage = qs("#modalImage");
+const modalVideo = qs("#modalVideo");
+const downloadMediaBtn = qs("#downloadMediaBtn");
+// ⭐ 히스토리 내비게이션 버튼 추가 ⭐
+const prevMediaBtn = qs("#prevMediaBtn");
+const nextMediaBtn = qs("#nextMediaBtn");
+
+let currentMediaHistory = []; // 현재 팝업에 표시될 미디어 히스토리 배열
+let currentMediaIndex = 0;    // 현재 표시 중인 미디어의 인덱스
+
+// 파일 경로에서 미디어 타입 (image/video) 추론 함수 (renderChat 전에 필요)
+function getMediaType(path) {
+    if (/\.(mp4|mov|webm|ogg)$/i.test(path)) {
+        return 'video';
+    } else if (/\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(path)) {
+        return 'image';
+    }
+    return 'unknown';
+}
+
+
+// ⭐ 채팅 UI 렌더링 ⭐ (loadChatData 함수보다 먼저 정의되도록 위치 변경)
+function renderChat(box, data, memberId){
+  box.innerHTML="";
+  const fanNick=getNickname() || "빌런즈";
+  let lastDate=null;
+  data.forEach(msg=>{
+    if(msg.date && msg.date!==lastDate){
+      const sep=document.createElement("div");
+      sep.className="chat-date-sep";
+      sep.textContent=formatDateK(msg.date);
+      box.appendChild(sep);
+      lastDate=msg.date;
+    }
+    
+    const msgWrap = document.createElement("div");
+    msgWrap.className = "chat-msg-wrap";
+
+    const msgContent = document.createElement("div");
+    msgContent.className = `chat-msg artist`;
+
+    let mediaUrl = null;
+    let mediaType = null;
+
+    if (msg.type === 'image' && msg.media) {
+      const img = document.createElement("img");
+      img.src = msg.media;
+      img.alt = "채팅 이미지";
+      img.className = "chat-media-image";
+      msgContent.appendChild(img);
+      mediaUrl = msg.media;
+      mediaType = 'image';
+    } else if (msg.type === 'video' && msg.media) {
+      const video = document.createElement("video");
+      video.src = msg.media;
+      video.controls = true;
+      video.className = "chat-media-video";
+      msgContent.appendChild(video);
+      mediaUrl = msg.media;
+      mediaType = 'video';
+    } else if (msg.text && msg.text.trim() !== '') {
+      const msgText = document.createTextNode(msg.text.replace(/\(name\)/g, fanNick));
+      msgContent.appendChild(msgText);
+    } else {
+      console.warn("Skipping message with no content:", msg);
+      return;
+    }
+
+    if (mediaUrl) {
+        msgContent.style.cursor = 'pointer';
+        // 채팅방의 미디어 팝업은 히스토리 기능이 없으므로, 현재 미디어만 단독으로 넘김
+        msgContent.addEventListener('click', () => {
+            openMediaModal(mediaUrl, mediaType, [{ path: mediaUrl, type: mediaType, type_orig: 'chat' }], 0);
+        });
+    }
+
+    msgWrap.appendChild(msgContent);
+    
+    if (msg.time) {
+      const meta = document.createElement("div");
+      meta.className = "chat-meta";
+      meta.textContent = msg.time;
+      msgWrap.appendChild(meta);
+    }
+    
+    box.appendChild(msgWrap);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+
 // 채팅 데이터 비동기 로드
 async function loadChatData(id){
   const box=qs("#chatScroll");
@@ -197,19 +292,6 @@ async function loadChatData(id){
     console.error("Failed to load chat data:", err);
   }
 }
-
-// ⭐ 미디어 모달 관련 DOM 요소 참조 변수 추가 ⭐ (viewer.html에서도 사용되도록 전역 정의)
-const mediaModal = qs("#mediaModal");
-const closeMediaModalBtn = qs("#closeMediaModal");
-const modalImage = qs("#modalImage");
-const modalVideo = qs("#modalVideo");
-const downloadMediaBtn = qs("#downloadMediaBtn");
-// ⭐ 히스토리 내비게이션 버튼 추가 ⭐
-const prevMediaBtn = qs("#prevMediaBtn");
-const nextMediaBtn = qs("#nextMediaBtn");
-
-let currentMediaHistory = []; // 현재 팝업에 표시될 미디어 히스토리 배열
-let currentMediaIndex = 0;    // 현재 표시 중인 미디어의 인덱스
 
 // ⭐ 미디어 팝업 열기 함수 (채팅방, 뷰어 페이지에서 모두 사용) ⭐
 function openMediaModal(mediaUrl, mediaType, historyData = [], initialIndex = 0) {
@@ -248,23 +330,21 @@ function updateMediaModalContent() {
     modalVideo.pause();
     modalVideo.currentTime = 0;
 
-    if (mediaItem.type === 'image') {
+    // mediaItem.type_orig는 viewer.html에서 넘어온 경우 'profile'/'background'
+    // mediaItem.type은 getMediaType에서 추론한 'image'/'video'
+    // 채팅방에서 넘어온 경우에는 type_orig가 없고, type이 바로 'image'/'video'
+    if (mediaItem.type === 'image' || mediaItem.type_orig === 'image') {
         modalImage.src = mediaItem.path;
         modalImage.style.display = 'block';
-    } else if (mediaItem.type === 'video') {
+    } else if (mediaItem.type === 'video' || mediaItem.type_orig === 'video') {
         modalVideo.src = mediaItem.path;
         modalVideo.style.display = 'block';
         modalVideo.load();
-    } else { // 채팅방에서 넘어온 일반적인 이미지/비디오 처리
-        if (mediaItem.type_orig === 'image') {
-            modalImage.src = mediaItem.path;
-            modalImage.style.display = 'block';
-        } else if (mediaItem.type_orig === 'video') {
-            modalVideo.src = mediaItem.path;
-            modalVideo.style.display = 'block';
-            modalVideo.load();
-        }
+    } else {
+        // Fallback for unknown types or missing data
+        console.warn("Unknown media type or missing path:", mediaItem);
     }
+
 
     downloadMediaBtn.href = mediaItem.path;
     const fileName = mediaItem.path.split('/').pop().split('?')[0];
@@ -403,16 +483,6 @@ async function initViewer() {
     }
 }
 
-// 파일 경로에서 미디어 타입 (image/video) 추론 함수
-function getMediaType(path) {
-    if (/\.(mp4|mov|webm|ogg)$/i.test(path)) {
-        return 'video';
-    } else if (/\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(path)) {
-        return 'image';
-    }
-    return 'unknown';
-}
-
 
 /* 페이지 로드 시 초기화 함수 실행 */
 document.addEventListener("DOMContentLoaded",()=>{
@@ -447,4 +517,3 @@ document.addEventListener("DOMContentLoaded",()=>{
     nextMediaBtn.addEventListener('click', showNextMedia);
   }
 });
-
