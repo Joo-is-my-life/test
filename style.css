@@ -351,7 +351,7 @@ html,body {
 
 .modal-card {
   width:80%;
-  max-width:300px;
+  max-width:300px; /* 닉네임 팝업의 max-width */
   background:var(--bg);
   padding:24px 16px;
   border-radius:var(--radius-md);
@@ -382,7 +382,7 @@ input[type="text"], input[type="date"], input[type="password"], input[type="date
   margin-top: 16px;
 }
 
-/* ⭐ 미디어 확대 팝업 스타일 추가 ⭐ */
+/* ⭐ 미디어 확대 팝업 스타일 수정 ⭐ */
 .media-modal {
   position: fixed;
   top: 0;
@@ -399,17 +399,24 @@ input[type="text"], input[type="date"], input[type="password"], input[type="date
 .media-modal-content {
   position: relative;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  max-width: 90vw; /* 뷰포트 너비의 90% */
+  flex-direction: column; /* 추가: 자식 요소를 세로로 배열 */
+  justify-content: center; /* 세로 중앙 정렬 */
+  align-items: center; /* 가로 중앙 정렬 */
+  max-width: var(--app-max-w); /* --app-max-w (420px)를 따르거나, 필요시 조정 */
   max-height: 90vh; /* 뷰포트 높이의 90% */
+  padding: 20px; /* 콘텐츠와 모달 테두리 사이의 패딩 추가 */
+  box-sizing: border-box; /* 패딩이 너비에 포함되도록 */
+  background-color: rgba(0, 0, 0, 0.5); /* 팝업 콘텐츠 배경색 (선택 사항) */
+  border-radius: var(--radius-md); /* 팝업 콘텐츠 모서리 둥글게 */
 }
 
 .modal-media {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 100%; /* 부모 요소(media-modal-content)의 최대 너비까지 */
+  height: auto; /* 높이는 비율에 맞춰 자동 조정 */
   object-fit: contain; /* 이미지/동영상 비율 유지하며 잘리지 않게 표시 */
   border-radius: var(--radius-md); /* 기존 말풍선과 유사하게 둥근 모서리 */
+  display: block; /* 줄 바꿈 방지 */
+  margin-bottom: 10px; /* 미디어와 버튼 사이 간격 */
 }
 
 .media-modal-close-btn {
