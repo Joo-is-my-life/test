@@ -357,20 +357,20 @@ function updateMediaModalContent() {
 
 // ⭐ 미디어 팝업 내비게이션 버튼 업데이트 함수 ⭐
 function updateMediaNavButtons() {
+    // 배열은 [최신, ..., 오래된] 순서입니다.
+    // 좌측 화살표 (이전, 즉 더 최신): 현재 인덱스가 0(가장 최신)이 아닐 때 활성화
     if (prevMediaBtn) {
-        // 좌측 화살표: 현재 인덱스가 배열의 마지막(가장 오래된)이 아니라면 활성화
-        // 배열이 [최신, ..., 오래된] 순이므로, 인덱스 0이 최신, 마지막 인덱스가 오래된
-        prevMediaBtn.disabled = currentMediaIndex === currentMediaHistory.length - 1;
+        prevMediaBtn.disabled = currentMediaIndex === 0;
     }
+    // 우측 화살표 (다음, 즉 더 과거): 현재 인덱스가 배열의 마지막(가장 오래된)이 아닐 때 활성화
     if (nextMediaBtn) {
-        // 우측 화살표: 현재 인덱스가 배열의 첫 번째(가장 최신)이 아니라면 활성화
-        nextMediaBtn.disabled = currentMediaIndex === 0;
+        nextMediaBtn.disabled = currentMediaIndex === currentMediaHistory.length - 1;
     }
 }
 
 // ⭐ 다음 미디어로 이동 (우측 화살표 클릭 시: 과거 사진) ⭐
 function showNextMedia() {
-    // 인덱스를 증가시켜서 배열의 뒤쪽으로 이동 (즉, 더 오래된 사진)
+    // 인덱스를 증가시켜 배열의 뒤쪽으로 이동 (즉, 더 오래된 사진)
     if (currentMediaIndex < currentMediaHistory.length - 1) {
         currentMediaIndex++;
         updateMediaModalContent();
@@ -380,7 +380,7 @@ function showNextMedia() {
 
 // ⭐ 이전 미디어로 이동 (좌측 화살표 클릭 시: 최근 사진) ⭐
 function showPrevMedia() {
-    // 인덱스를 감소시켜서 배열의 앞쪽으로 이동 (즉, 더 최신의 사진)
+    // 인덱스를 감소시켜 배열의 앞쪽으로 이동 (즉, 더 최신의 사진)
     if (currentMediaIndex > 0) {
         currentMediaIndex--;
         updateMediaModalContent();
@@ -446,14 +446,12 @@ async function initViewer() {
 
     if (viewerNameEl) viewerNameEl.textContent = disp;
 
-    // 현재 프로필/배경 이미지 로드 (member.html에서 표시되는 '최신' 이미지)
-    // 이 부분은 CSV의 가장 최신 이미지와 다를 수 있으므로, viewer.html의 초기 이미지는
-    // CSV에서 불러온 가장 최신 이미지를 사용하도록 변경합니다.
+    // viewer.html에 표시될 실제 이미지 엘리먼트
+    let currentViewerMediaElement;
     if (type === 'profile' && viewerProf) {
-        // viewerProf.src = profileSrc(id); // 이제 CSV에서 로드할 것이므로 주석 처리
-        viewerProf.onerror = () => { viewerProf.src = "images/default_profile.jpg"; };
+        currentViewerMediaElement = viewerProf;
     } else if (type === 'background' && viewerBg) {
-        // viewerBg.src = backgroundSrc(id); // 이제 CSV에서 로드할 것이므로 주석 처리
+        currentViewerMediaElement = viewerBg;
     }
 
     // 히스토리 데이터 로드 및 클릭 이벤트 연결
@@ -462,32 +460,25 @@ async function initViewer() {
         if (!res.ok) {
             console.error(`Failed to load history data for ${id}, type ${type}. Status: ${res.status}`);
             // CSV 로드 실패 시, 기본 이미지라도 로드 시도
-            if (type === 'profile' && viewerProf) {
-                viewerProf.src = profileSrc(id); // 기존 최신 이미지로 폴백
-            } else if (type === 'background' && viewerBg) {
-                viewerBg.src = backgroundSrc(id); // 기존 최신 이미지로 폴백
+            if (currentViewerMediaElement) {
+                currentViewerMediaElement.src = (type === 'profile') ? profileSrc(id) : backgroundSrc(id);
+                if (type === 'profile') {
+                    currentViewerMediaElement.onerror = () => { currentViewerMediaElement.src = "images/default_profile.jpg"; };
+                }
             }
             return;
         }
         const csvText = await res.text();
         const rawHistory = parseCsv(csvText); // CSV 파싱
 
-        // ⭐ 핵심 변경: 날짜를 기준으로 내림차순 정렬 (가장 최근 것부터 오래된 것 순으로) ⭐
+        // ⭐ 핵심: 날짜를 기준으로 내림차순 정렬 (가장 최근 것부터 오래된 것 순으로) ⭐
         const sortedHistory = rawHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         // 각 항목에 'type' 정보 추가 (팝업에서 사용하기 위함)
         const historyWithTypes = sortedHistory.map(item => ({ ...item, type_orig: type, type: getMediaType(item.path) }));
         
-        // viewer.html에 표시될 실제 이미지 엘리먼트
-        let currentViewerMediaElement;
-        if (type === 'profile' && viewerProf) {
-            currentViewerMediaElement = viewerProf;
-        } else if (type === 'background' && viewerBg) {
-            currentViewerMediaElement = viewerBg;
-        }
-
         if (currentViewerMediaElement && historyWithTypes.length > 0) {
-            // ⭐ viewer.html의 초기 이미지를 CSV에서 불러온 가장 최신 이미지로 설정 ⭐
+            // ⭐ viewer.html의 초기 이미지를 CSV에서 불러온 가장 최신 이미지 (배열의 0번째)로 설정 ⭐
             currentViewerMediaElement.src = historyWithTypes[0].path;
 
             currentViewerMediaElement.addEventListener('click', () => {
@@ -495,21 +486,21 @@ async function initViewer() {
                 openMediaModal(historyWithTypes[0]?.path, historyWithTypes[0]?.type, historyWithTypes, 0);
             });
         } else if (currentViewerMediaElement) {
-            // CSV 데이터가 없는 경우 기본 이미지 또는 기존 최신 이미지 로드
+            // CSV 데이터는 없지만 이미지를 표시할 엘리먼트가 있는 경우: 기존의 '최신' 이미지 로드
+            currentViewerMediaElement.src = (type === 'profile') ? profileSrc(id) : backgroundSrc(id);
             if (type === 'profile') {
-                currentViewerMediaElement.src = profileSrc(id);
-            } else if (type === 'background') {
-                currentViewerMediaElement.src = backgroundSrc(id);
+                currentViewerMediaElement.onerror = () => { currentViewerMediaElement.src = "images/default_profile.jpg"; };
             }
         }
 
     } catch (error) {
         console.error("Error loading profile/background history:", error);
         // 오류 발생 시에도 기본 이미지 로드 시도
-        if (type === 'profile' && viewerProf) {
-            viewerProf.src = profileSrc(id);
-        } else if (type === 'background' && viewerBg) {
-            viewerBg.src = backgroundSrc(id);
+        if (currentViewerMediaElement) {
+            currentViewerMediaElement.src = (type === 'profile') ? profileSrc(id) : backgroundSrc(id);
+            if (type === 'profile') {
+                currentViewerMediaElement.onerror = () => { currentViewerMediaElement.src = "images/default_profile.jpg"; };
+            }
         }
     }
 }
