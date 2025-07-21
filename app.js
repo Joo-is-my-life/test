@@ -2,12 +2,12 @@
 
 /* 전역 상수 및 설정 */
 const MEMBER_LIST = [
-  {id:"Gunil", display:"건일"},
+  {id:"Gunil", display:"건일 선배"},
   {id:"Jeongsu", display:"정수"},
-  {id:"Gaon", display:"가온"},
-  {id:"Ode", display:"오드"},
-  {id:"Junhan", display:"준한"},
-  {id:"Jooyeon", display:"주연"},
+  {id:"Gaon", display:"지석"},
+  {id:"Ode", display:"뜽이"},
+  {id:"Junhan", display:"자영"},
+  {id:"Jooyeon", display:"쭈쿠나쭈타타"},
 ];
 
 /* 유틸리티 함수 */
