@@ -86,7 +86,7 @@ function initArchive(){
 }
 
 /* 멤버 프로필 페이지 초기화 */
-function initMember(){
+async function initMember(){ // ⭐ async 키워드 유지 ⭐
   const id=getParam("m");
   if(!id) {
     console.warn("Member ID not found in URL for member.html");
@@ -98,21 +98,93 @@ function initMember(){
   const nameEl=qs("#memberDisplayName");
   const btn=qs("#viewChatBtn");
 
+  // ⭐ 배경 이미지 로드 및 클릭 이벤트 (팝업으로 바로 연결) ⭐
   if(bg) {
+    // 초기에는 기본 배경 이미지를 로드합니다.
     bg.src=backgroundSrc(id);
-    // ⭐ 배경 이미지 클릭 시 viewer.html로 이동 ⭐
-    bg.addEventListener("click", () => {
-      location.href = `viewer.html?m=${id}&type=background`;
-    });
+    bg.onerror=()=>{bg.src="images/default_background.jpg";}
+
+    try {
+        const res = await fetch(historyDataSrc(id, 'background'));
+        let historyData = [];
+        if(res.ok) {
+            const csvText = await res.text();
+            const rawHistory = parseCsv(csvText);
+            // 최신 -> 과거 순으로 정렬
+            const sortedHistory = rawHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+            historyData = sortedHistory.map(item => ({ ...item, type_orig: 'background', type: getMediaType(item.path) }));
+        } else if (res.status === 404) {
+             console.warn(`No background history CSV found for ${id}. Using current image only.`);
+        } else {
+            console.error(`Failed to load background history for ${id}. Status: ${res.status}`);
+            // 기타 오류 발생 시, historyData는 빈 배열로 유지
+        }
+
+        // CSV에서 데이터를 불러왔고 유효한 데이터가 있다면, 최신 이미지로 업데이트
+        if (historyData.length > 0) {
+            bg.src = historyData[0].path;
+        }
+
+        bg.addEventListener("click", () => {
+            if (historyData.length > 0) {
+                // 히스토리 데이터가 있으면 해당 데이터를 openMediaModal에 전달
+                openMediaModal(historyData[0].path, historyData[0].type, historyData, 0);
+            } else {
+                // 히스토리 데이터가 없으면 현재 표시된 이미지(기본 배경 또는 폴백)만 팝업
+                openMediaModal(bg.src, getMediaType(bg.src), [{ path: bg.src, type: getMediaType(bg.src), type_orig: 'background' }], 0);
+            }
+        });
+    } catch (error) {
+        console.error("Error loading background history:", error);
+        // 네트워크 오류 등 예외 발생 시 현재 이미지로만 팝업 열기 시도
+        if (bg) {
+            bg.addEventListener("click", () => {
+                openMediaModal(bg.src, getMediaType(bg.src), [{ path: bg.src, type: getMediaType(bg.src), type_orig: 'background' }], 0);
+            });
+        }
+    }
   }
+
+  // ⭐ 프로필 이미지 로드 및 클릭 이벤트 (팝업으로 바로 연결) ⭐
   if(prof){
     prof.src=profileSrc(id);
     prof.onerror=()=>{prof.src="images/default_profile.jpg";}
-    // ⭐ 프로필 이미지 클릭 시 viewer.html로 이동 ⭐
-    prof.addEventListener("click", () => {
-      location.href = `viewer.html?m=${id}&type=profile`;
-    });
+
+    try {
+        const res = await fetch(historyDataSrc(id, 'profile'));
+        let historyData = [];
+        if(res.ok) {
+            const csvText = await res.text();
+            const rawHistory = parseCsv(csvText);
+            const sortedHistory = rawHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+            historyData = sortedHistory.map(item => ({ ...item, type_orig: 'profile', type: getMediaType(item.path) }));
+        } else if (res.status === 404) {
+            console.warn(`No profile history CSV found for ${id}. Using current image only.`);
+        } else {
+            console.error(`Failed to load profile history for ${id}. Status: ${res.status}`);
+        }
+
+        if (historyData.length > 0) {
+            prof.src = historyData[0].path;
+        }
+
+        prof.addEventListener("click", () => {
+            if (historyData.length > 0) {
+                openMediaModal(historyData[0].path, historyData[0].type, historyData, 0);
+            } else {
+                openMediaModal(prof.src, getMediaType(prof.src), [{ path: prof.src, type: getMediaType(prof.src), type_orig: 'profile' }], 0);
+            }
+        });
+    } catch (error) {
+        console.error("Error loading profile history:", error);
+        if (prof) {
+            prof.addEventListener("click", () => {
+                openMediaModal(prof.src, getMediaType(prof.src), [{ path: prof.src, type: getMediaType(prof.src), type_orig: 'profile' }], 0);
+            });
+        }
+    }
   }
+
   if(nameEl) nameEl.textContent=disp;
   if(btn){
     btn.addEventListener("click",()=>{ location.href=`chat.html?m=${id}`; });
